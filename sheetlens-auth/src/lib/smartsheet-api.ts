@@ -1,17 +1,16 @@
 import { getAccessToken } from "./smartsheet-auth";
+import { SMARTSHEET_CONFIG } from "./config";
 
-const BASE = "https://api.smartsheet.com/2.0";
-
-async function sApi(path: string): Promise<any> {
+async function sApi<T>(path: string): Promise<T> {
   const token = await getAccessToken();
-  const r = await fetch(`${BASE}${path}`, {
+  const r = await fetch(`${SMARTSHEET_CONFIG.apiBaseUrl}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!r.ok) {
     const body = await r.text();
     throw new Error(`Smartsheet API ${r.status}: ${body}`);
   }
-  return r.json();
+  return (await r.json()) as T;
 }
 
 export interface SheetColumn {
@@ -36,6 +35,10 @@ export interface Sheet {
   columns: SheetColumn[];
   rows: SheetRow[];
 }
+export interface SheetData {
+  columns: string[];
+  rows: Record<string, unknown>[];
+}
 
 /**
  * Returns the full sheet including columns + rows.
@@ -45,16 +48,16 @@ export async function getSheet(sheetId: string): Promise<Sheet> {
   return sApi(`/sheets/${sheetId}?include=objectValue&level=1&pageSize=5000`);
 }
 
-export async function getCurrentUser(): Promise<any> {
+export async function getCurrentUser(): Promise<unknown> {
   return sApi(`/users/me`);
 }
 
 /**
  * Flattens a Smartsheet row into { ColumnTitle: value } using the sheet's columns.
  */
-export function rowToObject(row: SheetRow, columns: SheetColumn[]): Record<string, any> {
+export function rowToObject(row: SheetRow, columns: SheetColumn[]): Record<string, unknown> {
   const byId = new Map(columns.map((c) => [c.id, c.title]));
-  const obj: Record<string, any> = { _rowId: row.id, _rowNumber: row.rowNumber };
+  const obj: Record<string, unknown> = { _rowId: row.id, _rowNumber: row.rowNumber };
   for (const cell of row.cells) {
     const title = byId.get(cell.columnId);
     if (title) obj[title] = cell.displayValue ?? cell.value ?? "";
@@ -65,7 +68,15 @@ export function rowToObject(row: SheetRow, columns: SheetColumn[]): Record<strin
 /**
  * Convenience: fetch a sheet and return every row as a flat object array.
  */
-export async function getSheetAsObjects(sheetId: string): Promise<Record<string, any>[]> {
+export async function getSheetAsObjects(sheetId: string): Promise<Record<string, unknown>[]> {
   const sheet = await getSheet(sheetId);
   return sheet.rows.map((r) => rowToObject(r, sheet.columns));
+}
+
+export async function getSheetData(sheetId: string): Promise<SheetData> {
+  const sheet = await getSheet(sheetId);
+  return {
+    columns: sheet.columns.map((column) => column.title),
+    rows: sheet.rows.map((row) => rowToObject(row, sheet.columns)),
+  };
 }

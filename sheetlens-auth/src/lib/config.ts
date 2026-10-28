@@ -8,6 +8,7 @@ export const SMARTSHEET_CONFIG = {
 
   // Your deployed Vercel token-exchange endpoint
   tokenExchangeUrl: "https://sheetlens-auth-insulet2.vercel.app/api/token",
+  apiBaseUrl: "https://sheetlens-auth-insulet2.vercel.app/api",
 
   // Where Smartsheet redirects back to after sign-in. MUST exactly match
   // one of the redirect URIs registered on your Smartsheet OAuth app.

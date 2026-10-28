@@ -6,7 +6,7 @@
  * - signOut()          → clears local token
  * - isSignedIn()       → quick check for UI
  */
-import { SMARTSHEET_CONFIG } from "./sheetlens-config";
+import { SMARTSHEET_CONFIG } from "./config";
 
 const STORAGE_KEY = "sl.smartsheet.token";
 
@@ -19,11 +19,26 @@ interface StoredToken {
 function loadToken(): StoredToken | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+    if (!raw) return null;
+    const token: unknown = JSON.parse(raw);
+    if (
+      typeof token === "object" &&
+      token !== null &&
+      "access_token" in token &&
+      typeof token.access_token === "string" &&
+      "refresh_token" in token &&
+      typeof token.refresh_token === "string" &&
+      "expires_at" in token &&
+      typeof token.expires_at === "number"
+    ) {
+      return token as StoredToken;
+    }
+  } catch (error) {
+    console.error("Could not read the saved Smartsheet token.", error);
   }
+  return null;
 }
+
 function saveToken(t: StoredToken) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(t));
 }
@@ -37,12 +52,14 @@ export function isSignedIn(): boolean {
 
 export function signOut() {
   clearToken();
-  window.location.href = "/";
+  window.location.href = "/signin";
 }
 
 export function startSignIn() {
-  // Random state to protect against CSRF.
-  const state = Math.random().toString(36).slice(2);
+  const randomState = crypto.getRandomValues(new Uint8Array(32));
+  const state = Array.from(randomState, (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
   sessionStorage.setItem("sl.oauth.state", state);
 
   const params = new URLSearchParams({
@@ -55,6 +72,22 @@ export function startSignIn() {
 
   window.location.href =
     `https://app.smartsheet.com/b/authorize?${params.toString()}`;
+}
+
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+}
+
+function validateTokenResponse(data: unknown): data is TokenResponse & { access_token: string } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "access_token" in data &&
+    typeof data.access_token === "string" &&
+    data.access_token.length > 0
+  );
 }
 
 export async function handleCallback(code: string, state: string): Promise<void> {
@@ -73,8 +106,10 @@ export async function handleCallback(code: string, state: string): Promise<void>
     const err = await r.text();
     throw new Error(`Token exchange failed: ${err}`);
   }
-  const data = await r.json();
-  // Smartsheet returns: { access_token, refresh_token, expires_in (seconds), token_type }
+  const data: unknown = await r.json();
+  if (!validateTokenResponse(data) || !data.refresh_token) {
+    throw new Error("Token exchange returned an invalid token response.");
+  }
   saveToken({
     access_token: data.access_token,
     refresh_token: data.refresh_token,
@@ -97,7 +132,11 @@ async function refresh(): Promise<string> {
     clearToken();
     throw new Error("Token refresh failed; please sign in again.");
   }
-  const data = await r.json();
+  const data: unknown = await r.json();
+  if (!validateTokenResponse(data)) {
+    clearToken();
+    throw new Error("Token refresh returned an invalid token response.");
+  }
   saveToken({
     access_token: data.access_token,
     refresh_token: data.refresh_token ?? t.refresh_token,
@@ -109,7 +148,6 @@ async function refresh(): Promise<string> {
 export async function getAccessToken(): Promise<string> {
   const t = loadToken();
   if (!t) throw new Error("Not signed in");
-  // Refresh 1 minute before expiry.
   if (Date.now() > t.expires_at - 60_000) return refresh();
   return t.access_token;
 }

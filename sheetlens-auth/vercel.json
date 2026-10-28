@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/signin", "destination": "/" },
+    { "source": "/oauth/callback", "destination": "/" }
+  ]
+}

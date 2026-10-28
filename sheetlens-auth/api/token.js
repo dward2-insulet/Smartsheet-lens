@@ -2,15 +2,17 @@
 // The client_secret stays server-side — never shipped to the browser.
 
 export default async function handler(req, res) {
-  // CORS: allow SheetLens (localhost + production URLs) to call this endpoint.
-  const allowedOrigins = [
+  const allowedOrigins = new Set([
     "http://localhost:5173",
     "http://localhost:3000",
-    // Add your deployed SheetLens URL here later, e.g.:
-    // "https://sheetlens.insult.com",
-  ];
+    ...(process.env.SHEETLENS_ALLOWED_ORIGINS || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ]);
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  res.setHeader("Vary", "Origin");
+  if (origin && allowedOrigins.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -20,6 +22,15 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const { code, grant_type, refresh_token } = req.body || {};
+  const grantType = grant_type || "authorization_code";
+  if (
+    (grantType !== "authorization_code" && grantType !== "refresh_token") ||
+    (grantType === "authorization_code" && typeof code !== "string") ||
+    (grantType === "refresh_token" && typeof refresh_token !== "string")
+  ) {
+    return res.status(400).json({ error: "Invalid token request." });
+  }
+
   const clientId = process.env.SMARTSHEET_CLIENT_ID;
   const clientSecret = process.env.SMARTSHEET_CLIENT_SECRET;
 
@@ -28,21 +39,19 @@ export default async function handler(req, res) {
   }
 
   // Smartsheet requires a SHA-256 hash of (client_secret + "|" + code-or-refresh-token).
-  const toHash = `${clientSecret}|${grant_type === "refresh_token" ? refresh_token : code}`;
-  const hash = await sha256(toHash);
-
   const params = new URLSearchParams({
-    grant_type: grant_type || "authorization_code",
+    grant_type: grantType,
     client_id: clientId,
-    hash,
   });
-  if (grant_type === "refresh_token") {
+  if (grantType === "refresh_token") {
     params.set("refresh_token", refresh_token);
   } else {
     params.set("code", code);
   }
 
   try {
+    const toHash = `${clientSecret}|${grantType === "refresh_token" ? refresh_token : code}`;
+    params.set("hash", await sha256(toHash));
     const r = await fetch("https://api.smartsheet.com/2.0/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
