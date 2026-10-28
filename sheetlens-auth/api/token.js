@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     "http://localhost:5173",
     "http://localhost:3000",
     // Add your deployed SheetLens URL here later, e.g.:
-    // "https://sheetlens.insulet.com",
+    // "https://sheetlens.insult.com",
   ];
   const origin = req.headers.origin;
   if (origin && allowedOrigins.includes(origin)) {
