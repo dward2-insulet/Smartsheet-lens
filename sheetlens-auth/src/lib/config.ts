@@ -1,3 +1,5 @@
+import { SMARTSHEET_REGISTERS } from "./smartsheet-registers.js";
+
 /**
  * SheetLens runtime config. These are the only values you should ever need to
  * tweak when moving between environments (local dev, staging, production).
@@ -23,10 +25,5 @@ export const SMARTSHEET_CONFIG = {
   scope: "READ_SHEETS READ_USERS",
 
   // The four Insulet registers
-  sheets: {
-    projects: "8539610555568004",
-    tasks: "7985931070951300",
-    requests: "7915713086836612",
-    people: "6361518384828292",
-  },
+  sheets: SMARTSHEET_REGISTERS.sheets,
 };

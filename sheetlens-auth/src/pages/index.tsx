@@ -1,16 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { LayoutDashboard, LogOut, RefreshCw, Rows3 } from "lucide-react";
+import { ClipboardList, LayoutDashboard, LogOut, RefreshCw } from "lucide-react";
 import { signOut } from "../lib/smartsheet-auth";
-import { loadLiveData, type LiveData } from "../lib/sheetlens-data";
-
-type RegisterKey = keyof LiveData;
-
-const registers: { key: RegisterKey; label: string }[] = [
-  { key: "projects", label: "Projects" },
-  { key: "tasks", label: "Tasks" },
-  { key: "requests", label: "Requests" },
-  { key: "people", label: "People" },
-];
+import { loadContributorTasks, type ContributorTasks } from "../lib/sheetlens-data";
 
 function formatCell(value: unknown): string {
   if (value == null) return "";
@@ -19,8 +10,7 @@ function formatCell(value: unknown): string {
 }
 
 export default function HomePage() {
-  const [data, setData] = useState<LiveData | null>(null);
-  const [activeRegister, setActiveRegister] = useState<RegisterKey>("projects");
+  const [data, setData] = useState<ContributorTasks | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,10 +18,10 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      setData(await loadLiveData());
+      setData(await loadContributorTasks());
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : "Could not load Smartsheet data.",
+        reason instanceof Error ? reason.message : "Could not load your tasks.",
       );
     } finally {
       setLoading(false);
@@ -42,10 +32,8 @@ export default function HomePage() {
     void refresh();
   }, [refresh]);
 
-  const rows = data?.[activeRegister].rows ?? [];
-  const columns = data?.[activeRegister].columns ?? [];
-  const activeLabel =
-    registers.find((register) => register.key === activeRegister)?.label ?? "Register";
+  const rows = data?.tasks.rows ?? [];
+  const columns = data?.tasks.columns ?? [];
 
   return (
     <main className="app-page">
@@ -76,45 +64,34 @@ export default function HomePage() {
         <div className="page-heading">
           <div>
             <p className="eyebrow">PROJECT ENGINEERING</p>
-            <h1>Registers</h1>
-            <p className="muted">Live, read-only data from your Smartsheet workspace.</p>
+            <h1>My Tasks</h1>
+            <p className="muted">
+              Tasks where you are the Driver
+              {data ? ` · ${data.user.email}` : ""}
+            </p>
           </div>
           <div className="status-pill">
-            <span className={`status-dot ${loading ? "status-loading" : error ? "status-error" : ""}`} />
-            {loading ? "Updating" : error ? "Needs attention" : "Connected"}
+            <span
+              className={`status-dot ${loading ? "status-loading" : error ? "status-error" : ""}`}
+            />
+            {loading ? "Checking access" : error ? "Needs attention" : "Connected"}
           </div>
         </div>
 
-        <nav className="register-tabs" aria-label="Smartsheet registers">
-          {registers.map((register) => (
-            <button
-              key={register.key}
-              className={`register-tab ${activeRegister === register.key ? "active" : ""}`}
-              onClick={() => setActiveRegister(register.key)}
-              aria-current={activeRegister === register.key ? "page" : undefined}
-            >
-              {register.label}
-              <span className="tab-count">
-                {data ? data[register.key].rows.length : "—"}
-              </span>
-            </button>
-          ))}
-        </nav>
-
-        <section className="data-card" aria-label={`${activeLabel} data`}>
+        <section className="data-card" aria-label="My assigned tasks">
           <div className="data-card-heading">
             <div className="data-title">
-              <Rows3 size={18} />
-              <h2>{activeLabel}</h2>
+              <ClipboardList size={18} />
+              <h2>Assigned to me</h2>
             </div>
             {!loading && !error && (
-              <span className="muted">{rows.length} rows</span>
+              <span className="muted">{rows.length} tasks</span>
             )}
           </div>
 
           {error ? (
             <div className="message-panel error-panel" role="alert">
-              <h3>Couldn’t load your registers</h3>
+              <h3>Couldn’t load your tasks</h3>
               <p>{error}</p>
               <button className="button button-primary" onClick={() => void refresh()}>
                 Try again
@@ -123,11 +100,11 @@ export default function HomePage() {
           ) : loading && !data ? (
             <div className="message-panel">
               <div className="spinner" />
-              <p>Loading your Smartsheet registers…</p>
+              <p>Checking your role and assigned tasks…</p>
             </div>
           ) : rows.length === 0 ? (
             <div className="message-panel">
-              <p>No rows were returned for this register.</p>
+              <p>You don’t have any tasks assigned as Driver.</p>
             </div>
           ) : (
             <div className="table-scroll">
@@ -138,8 +115,8 @@ export default function HomePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, rowIndex) => (
-                    <tr key={String(row._rowId ?? rowIndex)}>
+                  {rows.map((row) => (
+                    <tr key={row._rowId}>
                       {columns.map((column) => (
                         <td key={column} title={formatCell(row[column])}>
                           {formatCell(row[column]) || <span className="empty-cell">—</span>}
@@ -152,8 +129,15 @@ export default function HomePage() {
             </div>
           )}
         </section>
+        {data && data.unmatchedDriverCount > 0 && (
+          <p className="footnote warning-note" role="status">
+            {data.unmatchedDriverCount} Driver assignment(s) did not include a contact email,
+            so they could not be matched to your account.
+          </p>
+        )}
         <p className="footnote">
-          Access is controlled by Smartsheet. This first version does not edit sheet data.
+          This first contributor view is read-only. Status, Contributor(s), and Due Date editing
+          will be added after this assignment view is verified.
         </p>
       </section>
     </main>

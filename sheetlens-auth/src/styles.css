@@ -237,51 +237,6 @@ button:disabled {
   background: #dc5d5d;
 }
 
-.register-tabs {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--border);
-}
-
-.register-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding: 12px 15px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: #718096;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.register-tab:hover {
-  color: #2d405e;
-}
-
-.register-tab.active {
-  border-bottom-color: var(--primary);
-  color: var(--primary);
-}
-
-.tab-count {
-  min-width: 22px;
-  padding: 2px 6px;
-  border-radius: 99px;
-  background: #eef2f8;
-  color: #687a94;
-  font-size: 10px;
-  text-align: center;
-}
-
-.active .tab-count {
-  background: #eaf0ff;
-  color: var(--primary);
-}
-
 .data-card {
   overflow: hidden;
   margin-top: 20px;
@@ -401,6 +356,10 @@ tbody tr:hover {
   margin: 15px 2px 0;
   color: #8693a6;
   font-size: 11px;
+}
+
+.warning-note {
+  color: #94620c;
 }
 
 .callback-card {
